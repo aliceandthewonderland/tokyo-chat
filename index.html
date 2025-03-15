@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Tokyo Chat</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span class="title">Tokyo Chat v1.0.0</span>
+      <!-- <span class="subtitle">MS-DOS Style Chat Interface</span> -->
+    </div>
+
+    <div class="chat-container">
+      <div id="chat-messages" class="messages"></div>
+    </div>
+
+    <div class="input-container">
+      <div class="prompt">C:\TOKYO&gt;</div>
+      <textarea id="message-input" placeholder="Type your message... (Markdown supported)"></textarea>
+      <button id="send-button">SEND</button>
+    </div>
+
+    <div class="status-bar">
+      <span>MARKDOWN ENABLED</span>
+      <span>PRESS ENTER TO SEND</span>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html> 
