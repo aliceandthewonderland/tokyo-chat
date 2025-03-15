@@ -141,10 +141,15 @@ body {
 .status-bar {
   display: flex;
   justify-content: space-between;
+  padding: 5px 0;
   border-top: 1px solid #00FF00;
-  padding-top: 5px;
-  font-size: 0.8em;
-  color: #888;
+  font-size: 0.9em;
+  color: #00AA00;
+}
+
+.model-status {
+  color: #FFAA00;
+  margin-left: 10px;
 }
 
 /* Blinking cursor effect */

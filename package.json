@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "electron": "^35.0.1",
-    "marked": "^15.0.7"
+    "marked": "^15.0.7",
+    "node-fetch": "^2.6.7"
   }
 }
