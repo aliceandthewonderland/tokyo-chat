@@ -126,12 +126,11 @@ async function fetchLoadedModels() {
 
 // Function to display available models
 function displayAvailableModels() {
-  let modelList = '### Your available LLM Models\n\n';
+  let modelList = '### Your available local LLM Models\n\n';
   
   if (ollamaModels.length === 0) {
     modelList += 'No models found. Make sure Ollama is running on http://localhost:11434\n';
   } else {
-    modelList += 'The following models are available:\n\n';
     ollamaModels.forEach((model, index) => {
       // modelList += `${index + 1}. **${model.name}** (${formatSize(model.size)})\n`;
       modelList += `**${index + 1}**. ${model.name} (${formatSize(model.size)})\n`;
@@ -343,6 +342,9 @@ function hideLoadingOverlay() {
   // Enable UI elements
   messageInput.disabled = false;
   sendButton.disabled = false;
+  
+  // Auto-focus the input field after overlay is hidden
+  messageInput.focus();
 }
 
 // Function to clear chat messages from the UI
@@ -482,6 +484,9 @@ async function sendChatCompletion(messages, model) {
         role: 'assistant',
         content: fullResponse
       });
+      
+      // Auto-focus the input field after response is complete
+      messageInput.focus();
       
       return fullResponse;
     } catch (error) {
@@ -773,6 +778,9 @@ async function init() {
     
     // Update status bar with loaded models
     await updateStatusBar();
+    
+    // Auto-focus the input field on startup
+    messageInput.focus();
     
     // Add event listener for model dropdown
     const dropdown = document.getElementById('model-dropdown');
