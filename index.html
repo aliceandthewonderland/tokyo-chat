@@ -25,7 +25,13 @@
     <div class="status-bar">
       <span>MARKDOWN ENABLED</span>
       <span>PRESS ENTER TO SEND</span>
-      <span class="model-status">NO MODEL LOADED</span>
+      <div class="model-dropdown-container">
+        <span class="model-label">LOADED MODEL:</span>
+        <select id="model-dropdown" class="model-dropdown">
+          <option value="">NO MODEL LOADED</option>
+        </select>
+        <div id="model-loading-indicator" class="model-loading-indicator hidden">LOADING...</div>
+      </div>
     </div>
   </div>
 

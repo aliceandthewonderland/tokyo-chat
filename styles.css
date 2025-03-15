@@ -152,6 +152,55 @@ body {
   margin-left: 10px;
 }
 
+/* Model dropdown styles */
+.model-dropdown-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.model-label {
+  color: #00AA00;
+  margin-right: 8px;
+}
+
+.model-dropdown {
+  background-color: #000;
+  color: #FFAA00;
+  border: 1px solid #00FF00;
+  padding: 2px 5px;
+  font-family: 'DOS', monospace;
+  font-size: 0.9em;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg fill='%2300FF00' height='24' viewBox='0 0 24 24' width='24' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 5px center;
+  padding-right: 25px;
+}
+
+.model-dropdown:focus {
+  outline: none;
+  border-color: #00AAFF;
+}
+
+.model-dropdown option {
+  background-color: #000;
+  color: #FFAA00;
+}
+
+.model-loading-indicator {
+  color: #FFAA00;
+  margin-left: 10px;
+  animation: blink 1s step-end infinite;
+}
+
+.hidden {
+  display: none;
+}
+
 /* Blinking cursor effect */
 .cursor::after {
   content: '█';

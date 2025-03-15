@@ -15,10 +15,13 @@ marked.setOptions({
 const messageInput = document.getElementById('message-input');
 const sendButton = document.getElementById('send-button');
 const chatMessages = document.getElementById('chat-messages');
+const modelDropdown = document.getElementById('model-dropdown');
+const modelLoadingIndicator = document.getElementById('model-loading-indicator');
 
 // Ollama API configuration
 const OLLAMA_API_BASE = 'http://localhost:11434/api';
 let ollamaModels = [];
+let loadedModels = [];
 let currentModel = null;
 let isModelLoading = false;
 
@@ -91,6 +94,22 @@ async function fetchOllamaModels() {
   }
 }
 
+// Function to fetch loaded models from Ollama API
+async function fetchLoadedModels() {
+  try {
+    const response = await fetch(`${OLLAMA_API_BASE}/ps`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    const data = await response.json();
+    loadedModels = data.models || [];
+    return loadedModels;
+  } catch (error) {
+    console.error('Error fetching loaded Ollama models:', error);
+    return [];
+  }
+}
+
 // Function to display available models
 function displayAvailableModels() {
   let modelList = '### Available LLM Models\n\n';
@@ -125,14 +144,17 @@ function formatSize(bytes) {
 // Function to load a model using Ollama API
 async function loadModel(modelName) {
   try {
+    // Set loading state
+    isModelLoading = true;
+    
+    // Update UI to show loading state
+    await updateStatusBar();
+    
     // Show loading overlay with timer
     showLoadingOverlay(`Loading Model "${modelName}", it may take several minutes.`);
     
     // Start timer
     startLoadingTimer();
-    
-    // Set loading state
-    isModelLoading = true;
     
     // Make API request to load the model
     const response = await fetch(`${OLLAMA_API_BASE}/generate`, {
@@ -161,11 +183,11 @@ async function loadModel(modelName) {
     // Hide loading overlay
     hideLoadingOverlay();
     
-    // Update status bar
-    updateStatusBar();
-    
     // Set loading state to false
     isModelLoading = false;
+    
+    // Refresh the loaded models list
+    await updateStatusBar();
     
     // Notify user
     addMessage(`Model "${modelName}" has been successfully loaded and is ready to use.`, false);
@@ -180,6 +202,9 @@ async function loadModel(modelName) {
     
     // Set loading state to false
     isModelLoading = false;
+    
+    // Refresh the loaded models list
+    await updateStatusBar();
     
     // Notify user of error
     addMessage(`Error loading model "${modelName}": ${error.message}`, false);
@@ -245,6 +270,10 @@ function stopLoadingTimer() {
 
 // Function to show loading overlay
 function showLoadingOverlay(message) {
+  // Update loading indicator in status bar
+  const loadingIndicator = document.getElementById('model-loading-indicator');
+  loadingIndicator.classList.remove('hidden');
+  
   // Create overlay if it doesn't exist
   let overlay = document.getElementById('loading-overlay');
   if (!overlay) {
@@ -255,27 +284,31 @@ function showLoadingOverlay(message) {
     overlay.style.left = '0';
     overlay.style.width = '100%';
     overlay.style.height = '100%';
-    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
     overlay.style.display = 'flex';
+    overlay.style.flexDirection = 'column';
     overlay.style.justifyContent = 'center';
     overlay.style.alignItems = 'center';
     overlay.style.zIndex = '1000';
-    overlay.style.color = 'white';
-    overlay.style.fontSize = '24px';
+    overlay.style.color = '#00FF00';
+    overlay.style.fontFamily = "'DOS', monospace";
     overlay.style.textAlign = 'center';
-    overlay.style.padding = '20px';
-    overlay.style.flexDirection = 'column'; // Change to column for better layout
+    
+    const messageElement = document.createElement('div');
+    messageElement.textContent = message;
+    messageElement.style.fontSize = '24px';
+    messageElement.style.marginBottom = '20px';
+    
+    const loadingAnimation = document.createElement('div');
+    loadingAnimation.textContent = 'LOADING...';
+    loadingAnimation.style.fontSize = '36px';
+    loadingAnimation.style.animation = 'blink 1s step-end infinite';
+    
+    overlay.appendChild(messageElement);
+    overlay.appendChild(loadingAnimation);
     
     document.body.appendChild(overlay);
   }
-  
-  // Create message element
-  const messageElement = document.createElement('div');
-  messageElement.textContent = message;
-  
-  // Clear overlay and add message
-  overlay.innerHTML = '';
-  overlay.appendChild(messageElement);
   
   // Disable UI elements
   messageInput.disabled = true;
@@ -284,6 +317,10 @@ function showLoadingOverlay(message) {
 
 // Function to hide loading overlay
 function hideLoadingOverlay() {
+  // Update loading indicator in status bar
+  const loadingIndicator = document.getElementById('model-loading-indicator');
+  loadingIndicator.classList.add('hidden');
+  
   const overlay = document.getElementById('loading-overlay');
   if (overlay) {
     overlay.remove();
@@ -295,15 +332,14 @@ function hideLoadingOverlay() {
 }
 
 // Process commands
-function processCommand(command) {
+async function processCommand(command) {
   const parts = command.split(' ');
   const cmd = parts[0].toLowerCase();
   
   switch (cmd) {
     case '/models':
-      fetchOllamaModels().then(() => {
-        displayAvailableModels();
-      });
+      await fetchOllamaModels();
+      displayAvailableModels();
       return true;
     case '/load':
       if (isModelLoading) {
@@ -336,8 +372,37 @@ function processCommand(command) {
         
         addMessage(`Attempting to load model: ${modelName}...`, false);
         // Load the model
-        loadModel(modelName);
+        await loadModel(modelName);
       }
+      return true;
+    case '/loaded':
+      // Fetch and display loaded models
+      await fetchLoadedModels();
+      let loadedModelsList = '### Currently Loaded Models\n\n';
+      
+      if (loadedModels.length === 0) {
+        loadedModelsList += 'No models are currently loaded.';
+      } else {
+        loadedModelsList += 'The following models are currently loaded and ready to use:\n\n';
+        loadedModels.forEach((model, index) => {
+          loadedModelsList += `**${index + 1}**. ${model.name}\n`;
+        });
+        
+        loadedModelsList += '\nYou can switch between loaded models using the dropdown in the status bar.';
+      }
+      
+      addMessage(loadedModelsList, false);
+      return true;
+    case '/help':
+      const helpMessage = `### Available Commands
+      
+**/models** - Show all available models
+**/loaded** - Show currently loaded models
+**/load [name]** - Load a model by name or number
+**/help** - Show this help message
+
+You can also switch between loaded models using the dropdown in the status bar.`;
+      addMessage(helpMessage, false);
       return true;
     default:
       return false;
@@ -345,7 +410,7 @@ function processCommand(command) {
 }
 
 // Send message function
-function sendMessage() {
+async function sendMessage() {
   const message = messageInput.value.trim();
   
   if (message) {
@@ -357,8 +422,14 @@ function sendMessage() {
     
     // Check if it's a command
     if (message.startsWith('/')) {
-      if (!processCommand(message)) {
-        addMessage(`Unknown command: ${message}. Try /models to see available models.`, false);
+      try {
+        const isCommand = await processCommand(message);
+        if (!isCommand) {
+          addMessage(`Unknown command: ${message}. Type /help to see available commands.`, false);
+        }
+      } catch (error) {
+        console.error('Error processing command:', error);
+        addMessage(`Error processing command: ${error.message}`, false);
       }
       return;
     }
@@ -375,44 +446,125 @@ function sendMessage() {
   }
 }
 
-// Event Listeners
-sendButton.addEventListener('click', sendMessage);
-
-// Send message when Enter is pressed (without shift for new line)
-messageInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
-  }
-});
-
-// Add a welcome message when the app starts
-window.addEventListener('DOMContentLoaded', () => {
-  addMessage('Welcome to Tokyo Chat!\n\n- Type your message and press Enter or the Send button to send\n- Markdown formatting is supported\n- Try using **bold**, *italic*, or `code`\n\nType `/models` to see available Ollama models. You can load models by number or name.', false);
+// Event listeners
+document.addEventListener('DOMContentLoaded', () => {
+  // Initialize the application
+  init();
   
-  // Fetch available models on startup
-  fetchOllamaModels().then(() => {
-    // Don't display models automatically, wait for user command
-    updateStatusBar();
-  }).catch(error => {
-    console.error('Error fetching models:', error);
+  // Add event listener for message input (Enter key)
+  messageInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage().catch(error => {
+        console.error('Error sending message:', error);
+      });
+    }
   });
+  
+  // Add event listener for send button
+  sendButton.addEventListener('click', () => {
+    sendMessage().catch(error => {
+      console.error('Error sending message:', error);
+    });
+  });
+  
+  // Welcome message
+  addMessage('Welcome to Tokyo Chat v1.0.0! Type `/help` to see available commands.', false);
 });
 
 // Update status bar with model information
-function updateStatusBar() {
-  const statusBar = document.querySelector('.status-bar');
+async function updateStatusBar() {
+  // Get the dropdown element
+  const dropdown = document.getElementById('model-dropdown');
   
-  // Keep existing spans
-  const existingSpans = Array.from(statusBar.querySelectorAll('span'));
+  // Clear all existing options
+  dropdown.innerHTML = '';
   
-  // Add or update model status span
-  let modelStatusSpan = statusBar.querySelector('.model-status');
-  if (!modelStatusSpan) {
-    modelStatusSpan = document.createElement('span');
-    modelStatusSpan.classList.add('model-status');
-    statusBar.appendChild(modelStatusSpan);
+  // Add default "NO MODEL LOADED" option
+  const defaultOption = document.createElement('option');
+  defaultOption.value = '';
+  defaultOption.textContent = 'NO MODEL LOADED';
+  dropdown.appendChild(defaultOption);
+  
+  try {
+    // Fetch loaded models
+    await fetchLoadedModels();
+    
+    // Add loaded models to dropdown
+    if (loadedModels.length > 0) {
+      loadedModels.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.name;
+        option.textContent = model.name;
+        dropdown.appendChild(option);
+      });
+      
+      // Set the current model as selected if it exists
+      if (currentModel) {
+        // Check if current model is in the loaded models
+        const isCurrentModelLoaded = loadedModels.some(model => model.name === currentModel);
+        
+        if (isCurrentModelLoaded) {
+          dropdown.value = currentModel;
+        } else {
+          // If current model is no longer loaded, reset it
+          currentModel = null;
+          dropdown.value = '';
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error updating status bar:', error);
   }
   
-  modelStatusSpan.textContent = currentModel ? `MODEL: ${currentModel}` : 'NO MODEL LOADED';
+  // Update loading indicator
+  const loadingIndicator = document.getElementById('model-loading-indicator');
+  if (isModelLoading) {
+    loadingIndicator.classList.remove('hidden');
+  } else {
+    loadingIndicator.classList.add('hidden');
+  }
+}
+
+// Initialize the application
+async function init() {
+  try {
+    // Fetch available models (for commands like /models)
+    await fetchOllamaModels();
+    
+    // Update status bar with loaded models
+    await updateStatusBar();
+    
+    // Add event listener for model dropdown
+    const dropdown = document.getElementById('model-dropdown');
+    dropdown.addEventListener('change', async (e) => {
+      const selectedModel = e.target.value;
+      
+      // If no model is selected, do nothing
+      if (!selectedModel) {
+        // Reset current model
+        currentModel = null;
+        await updateStatusBar();
+        return;
+      }
+      
+      // If the selected model is already loaded, do nothing
+      if (selectedModel === currentModel) return;
+      
+      // Set the current model
+      currentModel = selectedModel;
+      await updateStatusBar();
+      
+      // Notify user
+      addMessage(`Switched to model: ${selectedModel}`, false);
+    });
+    
+    // Set up a timer to periodically refresh the loaded models list
+    setInterval(async () => {
+      await updateStatusBar();
+    }, 10000); // Refresh every 10 seconds
+  } catch (error) {
+    console.error('Error initializing application:', error);
+    addMessage('Error initializing application. Please make sure Ollama is running on http://localhost:11434', false);
+  }
 } 
