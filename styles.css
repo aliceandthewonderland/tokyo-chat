@@ -103,6 +103,13 @@ body {
   align-self: flex-start;
 }
 
+#chat-messages {
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
 #message-input {
   flex: 1;
   background-color: #000;

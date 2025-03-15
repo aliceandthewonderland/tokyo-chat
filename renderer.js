@@ -63,8 +63,8 @@ function addMessage(content, isUser = true) {
   
   // Add to chat
   chatMessages.appendChild(messageElement);
-  
-  // Scroll to the bottom
+
+  // // Force scroll to bottom with multiple approaches to ensure it works
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
@@ -331,6 +331,10 @@ function hideLoadingOverlay() {
   sendButton.disabled = false;
 }
 
+function clearChat() {
+  chatMessages.innerHTML = '';
+}
+
 // Process commands
 async function processCommand(command) {
   const parts = command.split(' ');
@@ -338,7 +342,7 @@ async function processCommand(command) {
   
   switch (cmd) {
     case '/clear':
-      chatMessages.innerHTML = '';
+      clearChat();
       return true;
     case '/models':
       await fetchOllamaModels();

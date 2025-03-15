@@ -5,10 +5,15 @@ const path = require('path');
 let mainWindow;
 
 function createWindow() {
+  // Get the screen dimensions
+  const { width: screenWidth } = require('electron').screen.getPrimaryDisplay().workAreaSize;
+
   // Create the browser window with DOS-like dimensions
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 700,
+    height: 1000,
+    x: screenWidth - 700,
+    y: 0,
     resizable: true,
     webPreferences: {
       nodeIntegration: true,
