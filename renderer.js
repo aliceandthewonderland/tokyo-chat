@@ -337,6 +337,9 @@ async function processCommand(command) {
   const cmd = parts[0].toLowerCase();
   
   switch (cmd) {
+    case '/clear':
+      chatMessages.innerHTML = '';
+      return true;
     case '/models':
       await fetchOllamaModels();
       displayAvailableModels();
@@ -399,6 +402,7 @@ async function processCommand(command) {
 **/models** - Show all available models
 **/loaded** - Show currently loaded models
 **/load [name]** - Load a model by name or number
+**/clear** - Clear the chat
 **/help** - Show this help message
 
 You can also switch between loaded models using the dropdown in the status bar.`;
