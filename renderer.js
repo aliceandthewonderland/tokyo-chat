@@ -405,10 +405,10 @@ async function sendChatCompletion(messages, model) {
     );
     
     // Show loading overlay
-    // showLoadingOverlay('Generating response... it may take several minutes depends on the model size and your system performance.');
+    showLoadingOverlay('Generating response... it may take several minutes depends on the model size and your system performance.');
     
     // Start timer
-    // startLoadingTimer();
+    startLoadingTimer();
     
     try {
       if (DEBUG_MODE) console.log("Sending chat request to Ollama API:", model, filteredMessages);
@@ -429,8 +429,18 @@ async function sendChatCompletion(messages, model) {
         messages: filteredMessages
       });
       
+      // Flag to track if we've received the first chunk
+      let isFirstChunk = true;
+      
       // Process the text stream
       for await (const chunk of textStream) {
+        // If this is the first chunk, hide the loading overlay
+        if (isFirstChunk && chunk.trim() !== '') {
+          hideLoadingOverlay();
+          stopLoadingTimer();
+          isFirstChunk = false;
+        }
+        
         // Append chunk to fullResponse
         fullResponse += chunk;
         
@@ -441,11 +451,11 @@ async function sendChatCompletion(messages, model) {
         }
       }
       
-      // Hide loading overlay
-      // hideLoadingOverlay();
-      
-      // Stop timer
-      // stopLoadingTimer();
+      // Make sure the loading overlay is hidden in case no chunks were received
+      if (isFirstChunk) {
+        hideLoadingOverlay();
+        stopLoadingTimer();
+      }
       
       // Add the full response to message history
       messageHistory.push({
