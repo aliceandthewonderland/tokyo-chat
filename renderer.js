@@ -141,7 +141,7 @@ function displayAvailableModels() {
     modelList += `Current status: ${currentModel ? `Model "${currentModel}" loaded` : 'No model loaded'}`;
   }
   
-  addMessage(modelList, false);
+  addMessage(modelList, false, false);
 }
 
 // Helper function to format file size
@@ -204,7 +204,7 @@ async function loadModel(modelName) {
     await updateStatusBar();
     
     // Notify user
-    addMessage(`Model "${modelName}" has been successfully loaded and is ready to use.`, false);
+    addMessage(`Model "${modelName}" has been successfully loaded and is ready to use.`, false, false);
     
     return true;
   } catch (error) {
@@ -221,7 +221,7 @@ async function loadModel(modelName) {
     await updateStatusBar();
     
     // Notify user of error
-    addMessage(`Error loading model "${modelName}": ${error.message}`, false);
+    addMessage(`Error loading model "${modelName}": ${error.message}`, false, false);
     console.error('Error loading model:', error);
     
     return false;
@@ -619,14 +619,14 @@ async function sendMessage() {
   const message = messageInput.value.trim();
   
   if (message) {
-    // Add the message to the chat
-    addMessage(message, true);
-    
-    // Clear the input
-    messageInput.value = '';
-    
     // Check if it's a command
     if (message.startsWith('/')) {
+      // Add the command to the chat UI only, not to history
+      addMessage(message, true, false);
+      
+      // Clear the input
+      messageInput.value = '';
+      
       try {
         const isCommand = await processCommand(message);
         if (!isCommand) {
@@ -638,6 +638,12 @@ async function sendMessage() {
       }
       return;
     }
+    
+    // If not a command, add the message to the chat and history
+    addMessage(message, true, true);
+    
+    // Clear the input
+    messageInput.value = '';
     
     // Check if a model is loaded
     if (!currentModel) {
@@ -765,7 +771,7 @@ async function init() {
       await updateStatusBar();
       
       // Notify user
-      addMessage(`Switched to model: ${selectedModel}`, false);
+      addMessage(`Switched to model: ${selectedModel}`, false, false);
     });
     
     // Set up a timer to periodically refresh the loaded models list
@@ -774,6 +780,6 @@ async function init() {
     }, 10000); // Refresh every 10 seconds
   } catch (error) {
     console.error('Error initializing application:', error);
-    addMessage('Error initializing application. Please make sure Ollama is running on http://localhost:11434', false);
+    addMessage('Error initializing application. Please make sure Ollama is running on http://localhost:11434', false, false);
   }
 } 
