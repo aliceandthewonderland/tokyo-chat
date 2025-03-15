@@ -25,13 +25,16 @@ let loadedModels = [];
 let currentModel = null;
 let isModelLoading = false;
 
+// Chat message history
+let messageHistory = [];
+
 // Variables for the loading timer
 let loadingTimerInterval = null;
 let loadingStartTime = null;
 let loadingTimerElement = null;
 
 // Function to add a message to the chat
-function addMessage(content, isUser = true) {
+function addMessage(content, isUser = true, addToHistory = true) {
   // Create message elements
   const messageElement = document.createElement('div');
   messageElement.classList.add('message');
@@ -45,7 +48,7 @@ function addMessage(content, isUser = true) {
   // Add sender
   const sender = document.createElement('span');
   sender.classList.add('message-sender');
-  sender.textContent = isUser ? 'USER>' : 'SYSTEM>';
+  sender.textContent = isUser ? 'USER>' : 'ASSISTANT>';
   sender.style.color = isUser ? '#00AAFF' : '#FF5555';
   
   // Add content with markdown parsing
@@ -63,6 +66,14 @@ function addMessage(content, isUser = true) {
   
   // Add to chat
   chatMessages.appendChild(messageElement);
+
+  // Add to message history if needed
+  if (addToHistory) {
+    messageHistory.push({
+      role: isUser ? 'user' : 'assistant',
+      content: content
+    });
+  }
 
   // // Force scroll to bottom with multiple approaches to ensure it works
   chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -331,11 +342,97 @@ function hideLoadingOverlay() {
   sendButton.disabled = false;
 }
 
+// Function to clear chat messages from the UI
 function clearChat() {
+  // Clear the chat messages from the UI
   chatMessages.innerHTML = '';
+  // Note: We don't clear messageHistory as per requirements
+  addMessage('Chat cleared. Message history is preserved for context.', false, false);
 }
 
-// Process commands
+// Function to send a chat completion request to Ollama API
+async function sendChatCompletion(messages, model) {
+  try {
+    // Create a placeholder for the response
+    const responseId = Date.now();
+    const placeholderId = `response-${responseId}`;
+    
+    // Add an empty message that we'll update as we receive chunks
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('message');
+    messageElement.id = placeholderId;
+    
+    // Add timestamp
+    const timestamp = document.createElement('span');
+    timestamp.classList.add('message-timestamp');
+    const now = new Date();
+    timestamp.textContent = `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
+    
+    // Add sender
+    const sender = document.createElement('span');
+    sender.classList.add('message-sender');
+    sender.textContent = 'ASSISTANT>';
+    sender.style.color = '#FF5555';
+    
+    // Add content with markdown parsing
+    const messageContent = document.createElement('div');
+    messageContent.classList.add('message-content');
+    messageContent.innerHTML = '<div class="typing-indicator">▋</div>';
+    
+    // Append elements
+    messageElement.appendChild(timestamp);
+    messageElement.appendChild(sender);
+    messageElement.appendChild(document.createTextNode(' '));
+    messageElement.appendChild(messageContent);
+    
+    // Add to chat
+    chatMessages.appendChild(messageElement);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Make the API request
+    const response = await fetch(`${OLLAMA_API_BASE}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        stream: false // Set to false for simplicity
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    // Parse the response
+    const data = await response.json();
+    
+    // Get the response content
+    const responseContent = data.message?.content || '';
+    
+    // Update the message content
+    const contentElement = document.querySelector(`#${placeholderId} .message-content`);
+    contentElement.innerHTML = marked.parse(escapeHtml(responseContent));
+    
+    // Add the response to message history
+    messageHistory.push({
+      role: 'assistant',
+      content: responseContent
+    });
+
+    // Scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    return responseContent;
+  } catch (error) {
+    console.error('Error sending chat completion:', error);
+    addMessage(`Error generating response: ${error.message}`, false, false);
+    return null;
+  }
+}
+
 async function processCommand(command) {
   const parts = command.split(' ');
   const cmd = parts[0].toLowerCase();
@@ -350,12 +447,12 @@ async function processCommand(command) {
       return true;
     case '/load':
       if (isModelLoading) {
-        addMessage('A model is currently being loaded. Please wait for it to complete.', false);
+        addMessage('A model is currently being loaded. Please wait for it to complete.', false, false);
         return true;
       }
       
       if (parts.length < 2) {
-        addMessage('Please specify a model number or name to load. Type `/models` to see available models.', false);
+        addMessage('Please specify a model number or name to load. Type `/models` to see available models.', false, false);
       } else {
         const modelIdentifier = parts[1];
         let modelName;
@@ -372,12 +469,12 @@ async function processCommand(command) {
           // Verify the model exists
           const modelExists = ollamaModels.some(model => model.name === modelName);
           if (!modelExists && ollamaModels.length > 0) {
-            addMessage(`Model "${modelName}" not found. Type \`/models\` to see available models.`, false);
+            addMessage(`Model "${modelName}" not found. Type \`/models\` to see available models.`, false, false);
             return true;
           }
         }
         
-        addMessage(`Attempting to load model: ${modelName}...`, false);
+        addMessage(`Attempting to load model: ${modelName}...`, false, false);
         // Load the model
         await loadModel(modelName);
       }
@@ -398,7 +495,7 @@ async function processCommand(command) {
         loadedModelsList += '\nYou can switch between loaded models using the dropdown in the status bar.';
       }
       
-      addMessage(loadedModelsList, false);
+      addMessage(loadedModelsList, false, false);
       return true;
     case '/help':
       const helpMessage = `### Available Commands
@@ -406,11 +503,11 @@ async function processCommand(command) {
 **/models** - Show all available models
 **/loaded** - Show currently loaded models
 **/load [name]** - Load a model by name or number
-**/clear** - Clear the chat
+**/clear** - Clear the chat (UI only, message history is preserved)
 **/help** - Show this help message
 
 You can also switch between loaded models using the dropdown in the status bar.`;
-      addMessage(helpMessage, false);
+      addMessage(helpMessage, false, false);
       return true;
     default:
       return false;
@@ -433,24 +530,28 @@ async function sendMessage() {
       try {
         const isCommand = await processCommand(message);
         if (!isCommand) {
-          addMessage(`Unknown command: ${message}. Type /help to see available commands.`, false);
+          addMessage(`Unknown command: ${message}. Type /help to see available commands.`, false, false);
         }
       } catch (error) {
         console.error('Error processing command:', error);
-        addMessage(`Error processing command: ${error.message}`, false);
+        addMessage(`Error processing command: ${error.message}`, false, false);
       }
       return;
     }
     
-    // Here you would typically send the message to a server or another user
-    // For this demo, we'll just echo back a response
-    setTimeout(() => {
-      if (currentModel) {
-        addMessage(`You said: ${message}\n\nModel "${currentModel}" is loaded, but message processing is not yet implemented.`, false);
-      } else {
-        addMessage(`You said: ${message}\n\nNo model is currently loaded. Use /models to see available models and /load to load one.`, false);
-      }
-    }, 1000);
+    // Check if a model is loaded
+    if (!currentModel) {
+      addMessage('No model is currently loaded. Use /models to see available models and /load to load one.', false, false);
+      return;
+    }
+    
+    // Send the message to the Ollama API
+    try {
+      await sendChatCompletion(messageHistory, currentModel);
+    } catch (error) {
+      console.error('Error sending message to Ollama API:', error);
+      addMessage(`Error sending message to Ollama API: ${error.message}`, false, false);
+    }
   }
 }
 
@@ -477,7 +578,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   // Welcome message
-  addMessage('Welcome to Tokyo Chat v1.0.0! Type `/help` to see available commands.', false);
+  addMessage('Welcome to Tokyo Chat v1.0.0! Type `/help` to see available commands.', false, false);
 });
 
 // Update status bar with model information

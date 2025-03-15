@@ -205,16 +205,22 @@ body {
 }
 
 .hidden {
-  display: none;
+  display: none !important;
 }
 
-/* Blinking cursor effect */
+.typing-indicator {
+  display: inline-block;
+  color: #FF5555;
+  font-weight: bold;
+  animation: blink 1s step-end infinite;
+}
+
 .cursor::after {
-  content: '█';
+  content: "▋";
   animation: blink 1s step-end infinite;
 }
 
 @keyframes blink {
-  0%, 100% { opacity: 1; }
+  from, to { opacity: 1; }
   50% { opacity: 0; }
 } 
