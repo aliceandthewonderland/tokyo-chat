@@ -38,6 +38,9 @@ let loadingTimerInterval = null;
 let loadingStartTime = null;
 let loadingTimerElement = null;
 
+// Global AbortController reference
+let activeGenerationController = null;
+
 // Function to add a message to the chat
 function addMessage(content, isUser = true, addToHistory = true) {
   // Create message elements
@@ -325,9 +328,8 @@ function showLoadingOverlay(message) {
     document.body.appendChild(overlay);
   }
   
-  // Disable UI elements
-  messageInput.disabled = true;
-  sendButton.disabled = true;
+  // Note: We no longer disable UI elements here
+  // This is now handled by the setGeneratingState function
 }
 
 // Function to hide loading overlay
@@ -341,12 +343,9 @@ function hideLoadingOverlay() {
     overlay.remove();
   }
   
-  // Enable UI elements
-  messageInput.disabled = false;
-  sendButton.disabled = false;
-  
-  // Auto-focus the input field after overlay is hidden
-  messageInput.focus();
+  // Note: We no longer enable UI elements here
+  // This is now handled by the setGeneratingState function
+  // to prevent conflicts with the generating state
 }
 
 // Function to clear chat messages from the UI
@@ -357,9 +356,60 @@ function clearChat() {
   addMessage('Chat cleared. Message history is preserved for context.', false, false);
 }
 
+// Function to update UI for generation state
+function setGeneratingState(isGenerating) {
+  // Get UI elements
+  const sendButton = document.getElementById('send-button');
+  const stopButton = document.getElementById('stop-button');
+  const messageInput = document.getElementById('message-input');
+  
+  if (isGenerating) {
+    // Hide send button, show stop button
+    if (sendButton) sendButton.style.display = 'none';
+    if (stopButton) stopButton.style.display = 'inline-block';
+    
+    // Disable text input
+    if (messageInput) messageInput.disabled = true;
+  } else {
+    // Show send button, hide stop button
+    if (sendButton) sendButton.style.display = 'inline-block';
+    if (stopButton) stopButton.style.display = 'none';
+    
+    // Enable text input
+    if (messageInput) messageInput.disabled = false;
+    // Focus the input field when returning to non-generating state
+    messageInput.focus();
+    
+    // Reset the abort controller
+    activeGenerationController = null;
+  }
+}
+
+// Function to stop ongoing generation
+function stopGeneration() {
+  if (activeGenerationController) {
+    activeGenerationController.abort();
+    console.log('Generation stopped by user');
+    
+    // Make sure to hide loading overlay when stopping generation
+    hideLoadingOverlay();
+    stopLoadingTimer();
+    
+    // Return to non-generating state immediately when stopped
+    setGeneratingState(false);
+  }
+}
+
 // Function to send a chat completion request to Ollama API
 async function sendChatCompletion(messages, model) {
   try {
+    // Create AbortController for this generation
+    activeGenerationController = new AbortController();
+    const signal = activeGenerationController.signal;
+    
+    // Set UI to generating state
+    setGeneratingState(true);
+    
     // Create a placeholder for the response
     const responseId = Date.now();
     const placeholderId = `response-${responseId}`;
@@ -426,28 +476,69 @@ async function sendChatCompletion(messages, model) {
       // Process the stream and update the UI in real-time
       const { textStream } = await streamText({
         model: ollamaModel,
-        messages: filteredMessages
+        messages: filteredMessages,
+        signal: signal // Add abort signal
       });
       
       // Flag to track if we've received the first chunk
       let isFirstChunk = true;
       
       // Process the text stream
-      for await (const chunk of textStream) {
-        // If this is the first chunk, hide the loading overlay
-        if (isFirstChunk && chunk.trim() !== '') {
+      try {
+        for await (const chunk of textStream) {
+          // Check if generation was aborted
+          if (signal.aborted) {
+            throw new DOMException('Generation aborted by user', 'AbortError');
+          }
+          
+          // If this is the first chunk, hide the loading overlay
+          if (isFirstChunk && chunk.trim() !== '') {
+            hideLoadingOverlay();
+            stopLoadingTimer();
+            isFirstChunk = false;
+          }
+          
+          // Append chunk to fullResponse
+          fullResponse += chunk;
+          
+          // Update UI with the current content
+          if (contentElement) {
+            contentElement.innerHTML = marked.parse(escapeHtml(fullResponse));
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+          }
+        }
+      } catch (error) {
+        // Check if this was an abort error
+        if (error.name === 'AbortError') {
+          console.log('Generation was aborted');
+          
+          // Add a note to the response indicating it was stopped
+          fullResponse += '\n\n**[Generation stopped by user]**';
+          
+          // Update UI with the aborted message
+          if (contentElement) {
+            contentElement.innerHTML = marked.parse(escapeHtml(fullResponse));
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+          }
+          
+          // Make sure the loading overlay is hidden
           hideLoadingOverlay();
           stopLoadingTimer();
-          isFirstChunk = false;
-        }
-        
-        // Append chunk to fullResponse
-        fullResponse += chunk;
-        
-        // Update UI with the current content
-        if (contentElement) {
-          contentElement.innerHTML = marked.parse(escapeHtml(fullResponse));
-          chatMessages.scrollTop = chatMessages.scrollHeight;
+          
+          // Reset UI to non-generating state
+          setGeneratingState(false);
+          
+          // Add the partial response to message history
+          messageHistory.push({
+            role: 'assistant',
+            content: fullResponse
+          });
+          
+          // Return the partial response
+          return fullResponse;
+        } else {
+          // Rethrow other errors
+          throw error;
         }
       }
       
@@ -463,6 +554,9 @@ async function sendChatCompletion(messages, model) {
         content: fullResponse
       });
       
+      // Reset UI to non-generating state
+      setGeneratingState(false);
+      
       // Auto-focus the input field after response is complete
       messageInput.focus();
       
@@ -473,6 +567,9 @@ async function sendChatCompletion(messages, model) {
       
       // Stop timer
       stopLoadingTimer();
+      
+      // Reset UI to non-generating state
+      setGeneratingState(false);
       
       console.error('Error in chat completion:', error);
       // Update the message to show the error
@@ -488,6 +585,9 @@ async function sendChatCompletion(messages, model) {
     
     // Stop timer
     stopLoadingTimer();
+    
+    // Reset UI to non-generating state
+    setGeneratingState(false);
     
     console.error('Error setting up chat completion:', error);
     addMessage(`Error generating response: ${error.message}`, false, false);
@@ -688,6 +788,27 @@ document.addEventListener('DOMContentLoaded', () => {
     sendMessage().catch(error => {
       console.error('Error sending message:', error);
     });
+  });
+  
+  // Create and add stop button (initially hidden)
+  const stopButton = document.createElement('button');
+  stopButton.id = 'stop-button';
+  stopButton.textContent = 'Stop';
+  stopButton.style.display = 'none';
+  stopButton.style.backgroundColor = '#FF5555';
+  stopButton.style.color = 'white';
+  stopButton.style.border = 'none';
+  stopButton.style.padding = '8px 16px';
+  stopButton.style.borderRadius = '4px';
+  stopButton.style.cursor = 'pointer';
+  stopButton.style.fontSize = '14px';
+  
+  // Add stop button next to send button
+  sendButton.parentNode.insertBefore(stopButton, sendButton.nextSibling);
+  
+  // Add event listener for stop button
+  stopButton.addEventListener('click', () => {
+    stopGeneration();
   });
   
   // Welcome message
