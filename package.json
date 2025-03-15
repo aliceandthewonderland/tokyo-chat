@@ -32,7 +32,7 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "assets/tokyo_chat.jpg",
+      "icon": "assets/icon.ico",
       "signingHashAlgorithms": null,
       "signAndEditExecutable": false
     },
