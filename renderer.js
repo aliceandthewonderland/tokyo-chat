@@ -20,6 +20,12 @@ const chatMessages = document.getElementById('chat-messages');
 const OLLAMA_API_BASE = 'http://localhost:11434/api';
 let ollamaModels = [];
 let currentModel = null;
+let isModelLoading = false;
+
+// Variables for the loading timer
+let loadingTimerInterval = null;
+let loadingStartTime = null;
+let loadingTimerElement = null;
 
 // Function to add a message to the chat
 function addMessage(content, isUser = true) {
@@ -99,7 +105,7 @@ function displayAvailableModels() {
     });
     
     modelList += '\nTo load a model, type: `/load [number]` or `/load [model_name]`\n';
-    modelList += 'Current status: No model loaded';
+    modelList += `Current status: ${currentModel ? `Model "${currentModel}" loaded` : 'No model loaded'}`;
   }
   
   addMessage(modelList, false);
@@ -116,6 +122,178 @@ function formatSize(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
+// Function to load a model using Ollama API
+async function loadModel(modelName) {
+  try {
+    // Show loading overlay with timer
+    showLoadingOverlay(`Loading Model "${modelName}", it may take several minutes.`);
+    
+    // Start timer
+    startLoadingTimer();
+    
+    // Set loading state
+    isModelLoading = true;
+    
+    // Make API request to load the model
+    const response = await fetch(`${OLLAMA_API_BASE}/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: modelName,
+        prompt: "" // Empty prompt to just load the model
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Stop timer
+    stopLoadingTimer();
+    
+    // Update current model
+    currentModel = modelName;
+    
+    // Hide loading overlay
+    hideLoadingOverlay();
+    
+    // Update status bar
+    updateStatusBar();
+    
+    // Set loading state to false
+    isModelLoading = false;
+    
+    // Notify user
+    addMessage(`Model "${modelName}" has been successfully loaded and is ready to use.`, false);
+    
+    return true;
+  } catch (error) {
+    // Stop timer
+    stopLoadingTimer();
+    
+    // Hide loading overlay
+    hideLoadingOverlay();
+    
+    // Set loading state to false
+    isModelLoading = false;
+    
+    // Notify user of error
+    addMessage(`Error loading model "${modelName}": ${error.message}`, false);
+    console.error('Error loading model:', error);
+    
+    return false;
+  }
+}
+
+// Function to start the loading timer
+function startLoadingTimer() {
+  // Reset timer variables
+  loadingStartTime = new Date();
+  
+  // Create timer element if it doesn't exist
+  if (!loadingTimerElement) {
+    loadingTimerElement = document.createElement('div');
+    loadingTimerElement.style.marginTop = '20px';
+    loadingTimerElement.style.fontSize = '18px';
+    
+    // Add timer element to the overlay
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      overlay.appendChild(loadingTimerElement);
+    }
+  }
+  
+  // Update timer immediately
+  updateLoadingTimer();
+  
+  // Set interval to update timer every second
+  loadingTimerInterval = setInterval(updateLoadingTimer, 1000);
+}
+
+// Function to update the loading timer display
+function updateLoadingTimer() {
+  if (!loadingStartTime || !loadingTimerElement) return;
+  
+  // Calculate elapsed time
+  const now = new Date();
+  const elapsedMs = now - loadingStartTime;
+  const elapsedSeconds = Math.floor(elapsedMs / 1000);
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const seconds = elapsedSeconds % 60;
+  
+  // Format time string
+  const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  
+  // Update timer display
+  loadingTimerElement.textContent = `Time elapsed: ${timeString}`;
+}
+
+// Function to stop the loading timer
+function stopLoadingTimer() {
+  if (loadingTimerInterval) {
+    clearInterval(loadingTimerInterval);
+    loadingTimerInterval = null;
+  }
+  
+  loadingStartTime = null;
+  loadingTimerElement = null;
+}
+
+// Function to show loading overlay
+function showLoadingOverlay(message) {
+  // Create overlay if it doesn't exist
+  let overlay = document.getElementById('loading-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'loading-overlay';
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    overlay.style.display = 'flex';
+    overlay.style.justifyContent = 'center';
+    overlay.style.alignItems = 'center';
+    overlay.style.zIndex = '1000';
+    overlay.style.color = 'white';
+    overlay.style.fontSize = '24px';
+    overlay.style.textAlign = 'center';
+    overlay.style.padding = '20px';
+    overlay.style.flexDirection = 'column'; // Change to column for better layout
+    
+    document.body.appendChild(overlay);
+  }
+  
+  // Create message element
+  const messageElement = document.createElement('div');
+  messageElement.textContent = message;
+  
+  // Clear overlay and add message
+  overlay.innerHTML = '';
+  overlay.appendChild(messageElement);
+  
+  // Disable UI elements
+  messageInput.disabled = true;
+  sendButton.disabled = true;
+}
+
+// Function to hide loading overlay
+function hideLoadingOverlay() {
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) {
+    overlay.remove();
+  }
+  
+  // Enable UI elements
+  messageInput.disabled = false;
+  sendButton.disabled = false;
+}
+
 // Process commands
 function processCommand(command) {
   const parts = command.split(' ');
@@ -128,6 +306,11 @@ function processCommand(command) {
       });
       return true;
     case '/load':
+      if (isModelLoading) {
+        addMessage('A model is currently being loaded. Please wait for it to complete.', false);
+        return true;
+      }
+      
       if (parts.length < 2) {
         addMessage('Please specify a model number or name to load. Type `/models` to see available models.', false);
       } else {
@@ -151,8 +334,9 @@ function processCommand(command) {
           }
         }
         
-        addMessage(`Attempting to load model: ${modelName}. This feature is not yet implemented.`, false);
-        // Here you would implement the model loading functionality
+        addMessage(`Attempting to load model: ${modelName}...`, false);
+        // Load the model
+        loadModel(modelName);
       }
       return true;
     default:
@@ -182,7 +366,11 @@ function sendMessage() {
     // Here you would typically send the message to a server or another user
     // For this demo, we'll just echo back a response
     setTimeout(() => {
-      addMessage(`You said: ${message}\n\nNo model is currently loaded. Use /models to see available models and /load to load one.`, false);
+      if (currentModel) {
+        addMessage(`You said: ${message}\n\nModel "${currentModel}" is loaded, but message processing is not yet implemented.`, false);
+      } else {
+        addMessage(`You said: ${message}\n\nNo model is currently loaded. Use /models to see available models and /load to load one.`, false);
+      }
     }, 1000);
   }
 }
