@@ -18,6 +18,9 @@ const chatMessages = document.getElementById('chat-messages');
 const modelDropdown = document.getElementById('model-dropdown');
 const modelLoadingIndicator = document.getElementById('model-loading-indicator');
 
+// Debug mode - set to true to enable debugging output
+const DEBUG_MODE = false;
+
 // Ollama API configuration
 const OLLAMA_API_BASE = 'http://localhost:11434/api';
 let ollamaModels = [];
@@ -388,46 +391,98 @@ async function sendChatCompletion(messages, model) {
     // Add to chat
     chatMessages.appendChild(messageElement);
     chatMessages.scrollTop = chatMessages.scrollHeight;
-    
-    // Make the API request
-    const response = await fetch(`${OLLAMA_API_BASE}/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: messages,
-        stream: false // Set to false for simplicity
-      })
-    });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
+    let fullResponse = '';
+    
+    // Filter messages to only include user and assistant messages
+    const filteredMessages = messages.filter(msg => 
+      msg.role === 'user' || msg.role === 'assistant'
+    );
+    
+    try {
+      // Non-streaming approach (more reliable with node-fetch)
+      if (DEBUG_MODE) console.log("Sending chat request to Ollama API:", model, filteredMessages);
+      
+      const response = await fetch(`${OLLAMA_API_BASE}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: filteredMessages,
+          stream: false // Non-streaming mode
+        })
+      });
+  
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      // Parse the response JSON
+      const data = await response.json();
+      
+      if (DEBUG_MODE) console.log("Received response data:", data);
+      
+      // Extract the response content
+      let responseContent = '';
+      
+      // Handle different response formats from Ollama API
+      if (data.message && data.message.content) {
+        // Standard format
+        responseContent = data.message.content;
+      } else if (data.content) {
+        // Alternate format
+        responseContent = data.content;
+      } else if (data.response) {
+        // Legacy format
+        responseContent = data.response;
+      } else {
+        // If we can't extract content in the expected way, stringify the whole response
+        responseContent = JSON.stringify(data);
+        console.warn("Could not extract response content using known formats, using full JSON response");
+        if (DEBUG_MODE) console.log("Full response:", data);
+      }
+      
+      fullResponse = responseContent;
+      
+      // Display the response with a typing effect for better UX
+      const contentElement = document.querySelector(`#${placeholderId} .message-content`);
+      if (contentElement) {
+        // Start with empty content
+        contentElement.innerHTML = '';
+        
+        // Display characters with a delay for a typing effect
+        let displayedText = '';
+        const displayInterval = 5; // milliseconds between characters
+        const chunkSize = 3; // characters to add at once
+        
+        for (let i = 0; i < fullResponse.length; i += chunkSize) {
+          await new Promise(resolve => setTimeout(resolve, displayInterval));
+          displayedText += fullResponse.substring(i, Math.min(i + chunkSize, fullResponse.length));
+          contentElement.innerHTML = marked.parse(escapeHtml(displayedText));
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+      }
+      
+      // Add the full response to message history
+      messageHistory.push({
+        role: 'assistant',
+        content: fullResponse
+      });
+      
+      return fullResponse;
+    } catch (error) {
+      console.error('Error in chat completion:', error);
+      // Update the message to show the error
+      const contentElement = document.querySelector(`#${placeholderId} .message-content`);
+      if (contentElement) {
+        contentElement.innerHTML = marked.parse(escapeHtml(`Error: ${error.message}`));
+      }
+      return null;
     }
-
-    // Parse the response
-    const data = await response.json();
-    
-    // Get the response content
-    const responseContent = data.message?.content || '';
-    
-    // Update the message content
-    const contentElement = document.querySelector(`#${placeholderId} .message-content`);
-    contentElement.innerHTML = marked.parse(escapeHtml(responseContent));
-    
-    // Add the response to message history
-    messageHistory.push({
-      role: 'assistant',
-      content: responseContent
-    });
-
-    // Scroll to bottom
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    
-    return responseContent;
   } catch (error) {
-    console.error('Error sending chat completion:', error);
+    console.error('Error setting up chat completion:', error);
     addMessage(`Error generating response: ${error.message}`, false, false);
     return null;
   }
@@ -440,6 +495,14 @@ async function processCommand(command) {
   switch (cmd) {
     case '/clear':
       clearChat();
+      return true;
+    case '/history':
+      // Display the current message history
+      displayChatHistory();
+      return true;
+    case '/reset':
+      // Clear both UI and message history
+      resetChat();
       return true;
     case '/models':
       await fetchOllamaModels();
@@ -504,6 +567,8 @@ async function processCommand(command) {
 **/loaded** - Show currently loaded models
 **/load [name]** - Load a model by name or number
 **/clear** - Clear the chat (UI only, message history is preserved)
+**/reset** - Clear both the chat UI and message history
+**/history** - Display the current message history
 **/help** - Show this help message
 
 You can also switch between loaded models using the dropdown in the status bar.`;
@@ -512,6 +577,41 @@ You can also switch between loaded models using the dropdown in the status bar.`
     default:
       return false;
   }
+}
+
+// Function to display the current chat history
+function displayChatHistory() {
+  const historyCount = messageHistory.length;
+  let historyMessage = `### Current Chat History (${historyCount} messages)\n\n`;
+  
+  if (historyCount === 0) {
+    historyMessage += 'No messages in history.';
+  } else {
+    historyMessage += 'The following messages are stored in memory:\n\n';
+    
+    messageHistory.forEach((msg, index) => {
+      const role = msg.role.toUpperCase();
+      const preview = msg.content.length > 50 
+        ? msg.content.substring(0, 50) + '...' 
+        : msg.content;
+      
+      historyMessage += `**${index + 1}.** **${role}**: ${preview}\n\n`;
+    });
+  }
+  
+  addMessage(historyMessage, false, false);
+}
+
+// Function to reset the chat (clear both UI and history)
+function resetChat() {
+  // Clear the chat messages from the UI
+  chatMessages.innerHTML = '';
+  
+  // Clear the message history
+  messageHistory = [];
+  
+  // Add a notification message
+  addMessage('Chat reset. Both UI and message history have been cleared.', false, false);
 }
 
 // Send message function
