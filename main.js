@@ -21,7 +21,7 @@ function createWindow() {
       contextIsolation: false,
       preload: path.join(__dirname, 'preload.js')
     },
-    icon: path.join(__dirname, 'assets/tokyo_chat.jpg'),
+    icon: path.join(__dirname, 'assets', 'tokyo_chat.jpg'),
     backgroundColor: '#000',
     autoHideMenuBar: true
   });

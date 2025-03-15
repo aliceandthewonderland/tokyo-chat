@@ -5,14 +5,55 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "electron-builder --win --x64",
+    "build-win": "electron-builder --win --x64 --publish never"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "electron": "^35.0.1",
     "marked": "^15.0.7",
     "node-fetch": "^2.6.7"
+  },
+  "devDependencies": {
+    "electron": "^35.0.1",
+    "electron-builder": "^24.13.3",
+    "jimp": "^0.22.10",
+    "png-to-ico": "^2.1.8"
+  },
+  "build": {
+    "appId": "com.tokyochat.app",
+    "productName": "Tokyo Chat",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/tokyo_chat.jpg",
+      "signingHashAlgorithms": null,
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "forceCodeSigning": false,
+    "files": [
+      "**/*",
+      "!convert-icon.js",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ]
   }
 }
