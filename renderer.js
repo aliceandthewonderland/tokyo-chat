@@ -399,6 +399,12 @@ async function sendChatCompletion(messages, model) {
       msg.role === 'user' || msg.role === 'assistant'
     );
     
+    // Show loading overlay
+    showLoadingOverlay('Generating response...');
+    
+    // Start timer
+    startLoadingTimer();
+    
     try {
       // Non-streaming approach (more reliable with node-fetch)
       if (DEBUG_MODE) console.log("Sending chat request to Ollama API:", model, filteredMessages);
@@ -423,6 +429,12 @@ async function sendChatCompletion(messages, model) {
       const data = await response.json();
       
       if (DEBUG_MODE) console.log("Received response data:", data);
+      
+      // Hide loading overlay
+      hideLoadingOverlay();
+      
+      // Stop timer
+      stopLoadingTimer();
       
       // Extract the response content
       let responseContent = '';
@@ -473,6 +485,12 @@ async function sendChatCompletion(messages, model) {
       
       return fullResponse;
     } catch (error) {
+      // Hide loading overlay
+      hideLoadingOverlay();
+      
+      // Stop timer
+      stopLoadingTimer();
+      
       console.error('Error in chat completion:', error);
       // Update the message to show the error
       const contentElement = document.querySelector(`#${placeholderId} .message-content`);
@@ -482,6 +500,12 @@ async function sendChatCompletion(messages, model) {
       return null;
     }
   } catch (error) {
+    // Hide loading overlay in case of outer error
+    hideLoadingOverlay();
+    
+    // Stop timer
+    stopLoadingTimer();
+    
     console.error('Error setting up chat completion:', error);
     addMessage(`Error generating response: ${error.message}`, false, false);
     return null;

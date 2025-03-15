@@ -15,6 +15,7 @@ function createWindow() {
     x: screenWidth - 700,
     y: 0,
     resizable: true,
+    alwaysOnTop: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
