@@ -465,13 +465,22 @@ async function sendChatCompletion(messages, model) {
       
       // Get reference to the content element for updating
       const contentElement = document.querySelector(`#${placeholderId} .message-content`);
+      
       if (contentElement) {
         // Start with empty content
         contentElement.innerHTML = '';
       }
       
-      // Create the Ollama model with the baseURL
-      const ollamaModel = ollama(model, { baseUrl: OLLAMA_API_BASE });
+      // Create the Ollama model with the baseURL and pass the abort signal
+      const ollamaModel = ollama(model, { 
+        baseUrl: OLLAMA_API_BASE,
+        fetch: (url, options) => {
+          return fetch(url, {
+            ...options,
+            signal: signal // Pass the abort signal to the fetch request
+          });
+        }
+      });
       
       // Process the stream and update the UI in real-time
       const { textStream } = await streamText({
@@ -508,7 +517,7 @@ async function sendChatCompletion(messages, model) {
           }
         }
       } catch (error) {
-        // Check if this was an abort error
+        // Handle abort errors
         if (error.name === 'AbortError') {
           console.log('Generation was aborted');
           
@@ -537,7 +546,6 @@ async function sendChatCompletion(messages, model) {
           // Return the partial response
           return fullResponse;
         } else {
-          // Rethrow other errors
           throw error;
         }
       }
