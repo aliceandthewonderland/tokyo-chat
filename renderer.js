@@ -87,17 +87,18 @@ async function fetchOllamaModels() {
 
 // Function to display available models
 function displayAvailableModels() {
-  let modelList = '### Available Ollama Models\n\n';
+  let modelList = '### Available LLM Models\n\n';
   
   if (ollamaModels.length === 0) {
     modelList += 'No models found. Make sure Ollama is running on http://localhost:11434\n';
   } else {
     modelList += 'The following models are available:\n\n';
-    ollamaModels.forEach(model => {
-      modelList += `- **${model.name}** (${formatSize(model.size)})\n`;
+    ollamaModels.forEach((model, index) => {
+      // modelList += `${index + 1}. **${model.name}** (${formatSize(model.size)})\n`;
+      modelList += `**${index + 1}**. ${model.name} (${formatSize(model.size)})\n`;
     });
     
-    modelList += '\nTo load a model, type: `/load modelname`\n';
+    modelList += '\nTo load a model, type: `/load [number]` or `/load [model_name]`\n';
     modelList += 'Current status: No model loaded';
   }
   
@@ -128,9 +129,28 @@ function processCommand(command) {
       return true;
     case '/load':
       if (parts.length < 2) {
-        addMessage('Please specify a model name to load. Type `/models` to see available models.', false);
+        addMessage('Please specify a model number or name to load. Type `/models` to see available models.', false);
       } else {
-        const modelName = parts[1];
+        const modelIdentifier = parts[1];
+        let modelName;
+        
+        // Check if the input is a number
+        const modelIndex = parseInt(modelIdentifier) - 1;
+        if (!isNaN(modelIndex) && modelIndex >= 0 && modelIndex < ollamaModels.length) {
+          // User provided a number
+          modelName = ollamaModels[modelIndex].name;
+        } else {
+          // User provided a name
+          modelName = modelIdentifier;
+          
+          // Verify the model exists
+          const modelExists = ollamaModels.some(model => model.name === modelName);
+          if (!modelExists && ollamaModels.length > 0) {
+            addMessage(`Model "${modelName}" not found. Type \`/models\` to see available models.`, false);
+            return true;
+          }
+        }
+        
         addMessage(`Attempting to load model: ${modelName}. This feature is not yet implemented.`, false);
         // Here you would implement the model loading functionality
       }
@@ -180,7 +200,7 @@ messageInput.addEventListener('keydown', (e) => {
 
 // Add a welcome message when the app starts
 window.addEventListener('DOMContentLoaded', () => {
-  addMessage('Welcome to Tokyo Chat!\n\n- Type your message and press Enter or the Send button to send\n- Markdown formatting is supported\n- Try using **bold**, *italic*, or `code`\n\nType `/models` to see available Ollama models.', false);
+  addMessage('Welcome to Tokyo Chat!\n\n- Type your message and press Enter or the Send button to send\n- Markdown formatting is supported\n- Try using **bold**, *italic*, or `code`\n\nType `/models` to see available Ollama models. You can load models by number or name.', false);
   
   // Fetch available models on startup
   fetchOllamaModels().then(() => {
