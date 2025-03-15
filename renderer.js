@@ -126,7 +126,7 @@ async function fetchLoadedModels() {
 
 // Function to display available models
 function displayAvailableModels() {
-  let modelList = '### Available LLM Models\n\n';
+  let modelList = '### Your available LLM Models\n\n';
   
   if (ollamaModels.length === 0) {
     modelList += 'No models found. Make sure Ollama is running on http://localhost:11434\n';
@@ -165,7 +165,7 @@ async function loadModel(modelName) {
     await updateStatusBar();
     
     // Show loading overlay with timer
-    showLoadingOverlay(`Loading Model "${modelName}", it may take several minutes.`);
+    showLoadingOverlay(`Loading Model "${modelName}", it may take several minutes depends on the model size and your system performance.`);
     
     // Start timer
     startLoadingTimer();
@@ -400,7 +400,7 @@ async function sendChatCompletion(messages, model) {
     );
     
     // Show loading overlay
-    showLoadingOverlay('Generating response...');
+    showLoadingOverlay('Generating response... it may take several minutes depends on the model size and your system performance.');
     
     // Start timer
     startLoadingTimer();

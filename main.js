@@ -11,7 +11,7 @@ function createWindow() {
   // Create the browser window with DOS-like dimensions
   mainWindow = new BrowserWindow({
     width: 700,
-    height: 1000,
+    height: 600,
     x: screenWidth - 700,
     y: 0,
     resizable: true,
@@ -21,7 +21,7 @@ function createWindow() {
       contextIsolation: false,
       preload: path.join(__dirname, 'preload.js')
     },
-    icon: path.join(__dirname, 'assets/icon.png'),
+    icon: path.join(__dirname, 'assets/tokyo_chat.jpg'),
     backgroundColor: '#000',
     autoHideMenuBar: true
   });
