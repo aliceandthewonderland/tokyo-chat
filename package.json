@@ -13,8 +13,10 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "ai": "^4.1.61",
     "marked": "^15.0.7",
-    "node-fetch": "^2.6.7"
+    "node-fetch": "^2.6.7",
+    "ollama-ai-provider": "^1.2.0"
   },
   "devDependencies": {
     "electron": "^35.0.1",

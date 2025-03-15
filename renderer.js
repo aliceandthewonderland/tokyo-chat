@@ -1,6 +1,8 @@
 // Import marked for Markdown parsing
 const { marked } = require('marked');
 const fetch = require('node-fetch');
+const { streamText } = require('ai');
+const { ollama } = require('ollama-ai-provider');
 
 // Set default options for marked
 marked.setOptions({
@@ -394,6 +396,7 @@ async function sendChatCompletion(messages, model) {
     chatMessages.appendChild(messageElement);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
+    // Initialize the full response variable
     let fullResponse = '';
     
     // Filter messages to only include user and assistant messages
@@ -402,82 +405,47 @@ async function sendChatCompletion(messages, model) {
     );
     
     // Show loading overlay
-    showLoadingOverlay('Generating response... it may take several minutes depends on the model size and your system performance.');
+    // showLoadingOverlay('Generating response... it may take several minutes depends on the model size and your system performance.');
     
     // Start timer
-    startLoadingTimer();
+    // startLoadingTimer();
     
     try {
-      // Non-streaming approach (more reliable with node-fetch)
       if (DEBUG_MODE) console.log("Sending chat request to Ollama API:", model, filteredMessages);
       
-      const response = await fetch(`${OLLAMA_API_BASE}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: filteredMessages,
-          stream: false // Non-streaming mode
-        })
-      });
-  
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      // Parse the response JSON
-      const data = await response.json();
-      
-      if (DEBUG_MODE) console.log("Received response data:", data);
-      
-      // Hide loading overlay
-      hideLoadingOverlay();
-      
-      // Stop timer
-      stopLoadingTimer();
-      
-      // Extract the response content
-      let responseContent = '';
-      
-      // Handle different response formats from Ollama API
-      if (data.message && data.message.content) {
-        // Standard format
-        responseContent = data.message.content;
-      } else if (data.content) {
-        // Alternate format
-        responseContent = data.content;
-      } else if (data.response) {
-        // Legacy format
-        responseContent = data.response;
-      } else {
-        // If we can't extract content in the expected way, stringify the whole response
-        responseContent = JSON.stringify(data);
-        console.warn("Could not extract response content using known formats, using full JSON response");
-        if (DEBUG_MODE) console.log("Full response:", data);
-      }
-      
-      fullResponse = responseContent;
-      
-      // Display the response with a typing effect for better UX
+      // Get reference to the content element for updating
       const contentElement = document.querySelector(`#${placeholderId} .message-content`);
       if (contentElement) {
         // Start with empty content
         contentElement.innerHTML = '';
+      }
+      
+      // Create the Ollama model with the baseURL
+      const ollamaModel = ollama(model, { baseUrl: OLLAMA_API_BASE });
+      
+      // Process the stream and update the UI in real-time
+      const { textStream } = await streamText({
+        model: ollamaModel,
+        messages: filteredMessages
+      });
+      
+      // Process the text stream
+      for await (const chunk of textStream) {
+        // Append chunk to fullResponse
+        fullResponse += chunk;
         
-        // Display characters with a delay for a typing effect
-        let displayedText = '';
-        const displayInterval = 5; // milliseconds between characters
-        const chunkSize = 3; // characters to add at once
-        
-        for (let i = 0; i < fullResponse.length; i += chunkSize) {
-          await new Promise(resolve => setTimeout(resolve, displayInterval));
-          displayedText += fullResponse.substring(i, Math.min(i + chunkSize, fullResponse.length));
-          contentElement.innerHTML = marked.parse(escapeHtml(displayedText));
+        // Update UI with the current content
+        if (contentElement) {
+          contentElement.innerHTML = marked.parse(escapeHtml(fullResponse));
           chatMessages.scrollTop = chatMessages.scrollHeight;
         }
       }
+      
+      // Hide loading overlay
+      // hideLoadingOverlay();
+      
+      // Stop timer
+      // stopLoadingTimer();
       
       // Add the full response to message history
       messageHistory.push({
@@ -809,7 +777,7 @@ async function init() {
     // Set up a timer to periodically refresh the loaded models list
     setInterval(async () => {
       await updateStatusBar();
-    }, 10000); // Refresh every 10 seconds
+    }, 10000); // Refresh every 10 seconds 
   } catch (error) {
     console.error('Error initializing application:', error);
     addMessage('Error initializing application. Please make sure Ollama is running on http://localhost:11434', false, false);
